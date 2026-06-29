@@ -37,7 +37,7 @@
         #modal {
             background-color: var(--modal-bg);
             border: var(--modal-border);
-            padding: 1rem;
+            padding: .5rem;
             box-shadow: var(--term-glow);
             display: flex;
             flex-direction: column;
@@ -46,9 +46,9 @@
 
         #header {
             font-weight: bold;
-            padding: .3rem;
+            /*padding: .3rem;
             background-color: var(--term-color);
-            color: var(--term-bg)
+            color: var(--term-bg);*/
         }
 
         #grid-container {
@@ -103,7 +103,7 @@
 <body>
 
     <div id="modal">
-        <div id="header">thsr.io</div>
+        <div id="header">▓▓▓ thsr.io ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓</div>
         <div id="grid-container"></div>
         <div id="footer">
             <div id="input-container">
@@ -128,7 +128,7 @@
             
             loadingBarWidth: 48,    // Width of the loading bar inside the brackets
             resetDelayMs: 1000,      // How long to show "ACCESS DENIED" and Xs before resetting
-            encryptHoldMs: 50,     // How long to display the 100% full loading bar
+            encryptHoldMs: 100,     // How long to display the 100% full loading bar
         };
 
         /* =========================================
@@ -273,8 +273,7 @@
                     setTimeout(() => {
                         currentState = 'RESET_UP';
                         // Clear the "ACCESS DENIED" text during reset sequence
-                        // domStatusContainer.innerHTML = ''; 
-                    domStatusContainer.innerHTML = '<span class="error-text">ACCESS DENIED</span>';
+                        domStatusContainer.innerHTML = '&nbsp;';
                     }, CONFIG.resetDelayMs);
                 }
 
