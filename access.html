@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>thsr.io</title>
+    <style>
+        /* =========================================
+           CUSTOMIZATION: STYLES
+           ========================================= */
+        :root {
+            --term-bg: #eee;
+            --term-color: #3c3c3c;
+            --term-error-color: #c16e6e;
+            
+            --term-font: monospace;
+            --term-font-size: 12px;
+            
+            --term-glow: 0 0 0px rgba(74, 246, 38, 0.6);
+            --term-error-glow: 0 0 0px rgba(255, 51, 51, 0.6);
+            
+            --modal-border: var(--term-color) 1.5px solid;
+            --modal-bg: var(--term-bg);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            background-color: var(--term-bg);
+            color: var(--term-color);
+            font-family: var(--term-font);
+            font-size: var(--term-font-size);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #modal {
+            background-color: var(--modal-bg);
+            border: var(--modal-border);
+            padding: 1rem;
+            box-shadow: var(--term-glow);
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        #header {
+            text-transform: uppercase;
+            font-weight: bold;
+            padding: .2rem;
+            background-color: var(--term-color);
+            color: var(--term-bg)
+        }
+
+        #grid-container {
+            line-height: 1;
+            letter-spacing: 0px;
+            white-space: pre;
+            text-shadow: var(--term-glow);
+            user-select: none;
+        }
+
+        #footer {
+            display: flex;
+            align-items: center;
+            height: 1.5rem;
+            text-shadow: var(--term-glow);
+        }
+
+        /* Input State */
+        #input-container {
+            display: flex;
+            width: 100%;
+            text-transform: uppercase;
+        }
+        #term-auth-entry {
+            background: transparent;
+            border: none;
+            color: inherit;
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+            flex-grow: 1;
+            text-shadow: var(--term-glow);
+            min-width: 0; 
+            width: 0;
+        }
+
+        #status-container {
+            display: none;
+            width: 100%;
+            justify-content: left;
+            white-space: pre;
+        }
+
+        .error-text {
+            color: var(--term-error-color);
+            text-shadow: var(--term-error-glow);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="modal">
+        <div id="header">thsr.io</div>
+        <div id="grid-container"></div>
+        <div id="footer">
+            <div id="input-container">
+                <span>Access password:</span>
+                <input type="text" id="term-auth-entry" name="terminal_sys_cmd" autocomplete="off" spellcheck="false" autofocus>
+            </div>
+            <div id="status-container"></div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================
+           CUSTOMIZATION: VARIABLES & CONSTANTS
+           ========================================= */
+        const CONFIG = {
+            gridWidth: 40,
+            gridHeight: 15,
+            charsetInitial: '                         ÃÂÄÅÃÂÄÅÃÂÄÅâ€œ”’‘—–™šœžŸ¢£§©®°±²³µ¶·»¼½¾¿¡‡†œ',
+            charsetBlocks: [' ', '░', '▒', '▓'],
+            charFinal: 'X',
+            
+            tickRateMs: 10,         // How often the animation loop runs (ms)
+            cellsPerTickEnc: 50,    // How many characters change per tick during encryption (to solid)
+            cellsPerTickDec: 100,   // How many characters change per tick during decryption (to X and back)
+            
+            loadingBarWidth: 38,    // Width of the loading bar inside the brackets
+            resetDelayMs: 100      // How long to show "ACCESS DENIED" and Xs before resetting
+        };
+
+        /* =========================================
+           STATE & DOM ELEMENTS
+           ========================================= */
+        let grid = []; 
+        let currentState = 'INPUT'; // 'INPUT', 'ENCRYPT_UP', 'DECRYPT_X', 'DENIED_HOLD', 'RESET_UP', 'RESET_DOWN'
+        let animationInterval = null;
+
+        const domGrid = document.getElementById('grid-container');
+        const domInputContainer = document.getElementById('input-container');
+        const domStatusContainer = document.getElementById('status-container');
+        const domInput = document.getElementById('term-auth-entry');
+
+        /* =========================================
+           INITIALIZATION & UTILS
+           ========================================= */
+        function getRandomChar(charset) {
+            return charset[Math.floor(Math.random() * charset.length)];
+        }
+
+        function initGrid() {
+            grid = [];
+            for (let i = 0; i < CONFIG.gridWidth * CONFIG.gridHeight; i++) {
+                grid.push({
+                    baseChar: getRandomChar(CONFIG.charsetInitial),
+                    stage: 0
+                });
+            }
+        }
+
+        function reRandomizeGridChars() {
+            grid.forEach(cell => {
+                cell.baseChar = getRandomChar(CONFIG.charsetInitial);
+            });
+        }
+
+        function resetUI() {
+            currentState = 'INPUT';
+            domInput.value = '';
+            domInputContainer.style.display = 'flex';
+            domStatusContainer.style.display = 'none';
+            domInput.focus();
+        }
+
+        /* =========================================
+           RENDERING
+           ========================================= */
+        function renderGrid() {
+            let output = '';
+            for (let y = 0; y < CONFIG.gridHeight; y++) {
+                for (let x = 0; x < CONFIG.gridWidth; x++) {
+                    let cell = grid[y * CONFIG.gridWidth + x];
+                    
+                    if (cell.stage === 0) {
+                        if (cell.baseChar === CONFIG.charFinal) {
+                            // Apply red color specifically to the final character ('X')
+                            output += `<span class="error-text">${cell.baseChar}</span>`;
+                        } else {
+                            output += cell.baseChar;
+                        }
+                    } else {
+                        // Blocks maintain the standard color
+                        output += CONFIG.charsetBlocks[cell.stage - 1];
+                    }
+                }
+                output += '\n';
+            }
+            domGrid.innerHTML = output;
+        }
+
+        function updateLoadingBar() {
+            const totalMaxStages = grid.length * 4;
+            const currentStages = grid.reduce((sum, cell) => sum + cell.stage, 0);
+            const progressRatio = currentStages / totalMaxStages;
+            
+            const filledLength = Math.floor(progressRatio * CONFIG.loadingBarWidth);
+            const emptyLength = CONFIG.loadingBarWidth - filledLength;
+            
+            const bar = '[' + '='.repeat(filledLength) + ' '.repeat(emptyLength) + ']';
+            domStatusContainer.textContent = bar;
+        }
+
+        /* =========================================
+           ANIMATION LOGIC
+           ========================================= */
+        function startEncryption() {
+            currentState = 'ENCRYPT_UP';
+            domInputContainer.style.display = 'none';
+            domStatusContainer.style.display = 'flex';
+            updateLoadingBar();
+            
+            animationInterval = setInterval(animTick, CONFIG.tickRateMs);
+        }
+
+        function animTick() {
+            let changed = false;
+
+            // Handle block incrementing/decrementing based on current phase
+            if (currentState === 'ENCRYPT_UP' || currentState === 'RESET_UP') {
+                for (let i = 0; i < CONFIG.cellsPerTickEnc; i++) {
+                    let idx = Math.floor(Math.random() * grid.length);
+                    if (grid[idx].stage < 4) {
+                        grid[idx].stage++;
+                        changed = true;
+                    }
+                }
+            } else if (currentState === 'DECRYPT_X' || currentState === 'RESET_DOWN') {
+                for (let i = 0; i < CONFIG.cellsPerTickDec; i++) {
+                    let idx = Math.floor(Math.random() * grid.length);
+                    if (grid[idx].stage > 0) {
+                        grid[idx].stage--;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) renderGrid();
+
+            // Handle Phase Transitions
+            if (currentState === 'ENCRYPT_UP') {
+                updateLoadingBar();
+                // If fully encrypted to solid blocks
+                if (grid.every(cell => cell.stage === 4)) {
+                    // Set base chars to 'X' for the journey down
+                    grid.forEach(cell => cell.baseChar = CONFIG.charFinal);
+                    currentState = 'DECRYPT_X';
+                    // Display Access Denied in red
+                    domStatusContainer.innerHTML = '<span class="error-text">ACCESS DENIED</span>';
+                }
+
+            } else if (currentState === 'DECRYPT_X') {
+                // If fully decrypted to red 'X's
+                if (grid.every(cell => cell.stage === 0)) {
+                    currentState = 'DENIED_HOLD';
+                    setTimeout(() => {
+                        currentState = 'RESET_UP';
+                        // Clear the "ACCESS DENIED" text during reset sequence
+                        // domStatusContainer.innerHTML = ''; 
+                    domStatusContainer.innerHTML = '<span class="error-text">ACCESS DENIED</span>';
+                    }, CONFIG.resetDelayMs);
+                }
+
+            } else if (currentState === 'RESET_UP') {
+                // If fully encrypted back to solid blocks
+                if (grid.every(cell => cell.stage === 4)) {
+                    // Set base chars back to random original charset for the final journey down
+                    reRandomizeGridChars();
+                    currentState = 'RESET_DOWN';
+                }
+
+            } else if (currentState === 'RESET_DOWN') {
+                // If fully decrypted back to initial grid state
+                if (grid.every(cell => cell.stage === 0)) {
+                    clearInterval(animationInterval);
+                    resetUI();
+                }
+            }
+        }
+
+        /* =========================================
+           EVENT LISTENERS
+           ========================================= */
+        domInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && currentState === 'INPUT') {
+                startEncryption();
+            }
+        });
+
+        // Keep focus on input if user clicks away during INPUT state
+        document.addEventListener('click', () => {
+            if (currentState === 'INPUT') {
+                domInput.focus();
+            }
+        });
+
+        // Boot up Sequence
+        initGrid();
+        renderGrid();
+        resetUI();
+
+    </script>
+</body>
+</html>
