@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>thsr.io</title>
     <style>
-        /* =========================================
-           CUSTOMIZATION: STYLES
-           ========================================= */
         :root {
             --term-bg: #eee;
             --term-color: #3c3c3c;
@@ -48,9 +45,8 @@
         }
 
         #header {
-            text-transform: uppercase;
             font-weight: bold;
-            padding: .2rem;
+            padding: .3rem;
             background-color: var(--term-color);
             color: var(--term-bg)
         }
@@ -66,19 +62,20 @@
         #footer {
             display: flex;
             align-items: center;
-            height: 1.5rem;
             text-shadow: var(--term-glow);
         }
 
-        /* Input State */
         #input-container {
             display: flex;
+            align-items: center;
             width: 100%;
-            text-transform: uppercase;
         }
         #term-auth-entry {
             background: transparent;
             border: none;
+            padding: 0;
+            margin: 0;
+            line-height: inherit;
             color: inherit;
             font-family: inherit;
             font-size: inherit;
@@ -92,7 +89,8 @@
         #status-container {
             display: none;
             width: 100%;
-            justify-content: left;
+            align-items: center;
+            justify-content: flex-start;
             white-space: pre;
         }
 
@@ -109,7 +107,7 @@
         <div id="grid-container"></div>
         <div id="footer">
             <div id="input-container">
-                <span>Access password:</span>
+                <span>thsr.io:~/enter_password>&nbsp;</span>
                 <input type="text" id="term-auth-entry" name="terminal_sys_cmd" autocomplete="off" spellcheck="false" autofocus>
             </div>
             <div id="status-container"></div>
@@ -117,22 +115,20 @@
     </div>
 
     <script>
-        /* =========================================
-           CUSTOMIZATION: VARIABLES & CONSTANTS
-           ========================================= */
         const CONFIG = {
-            gridWidth: 40,
+            gridWidth: 50,
             gridHeight: 15,
             charsetInitial: '                         ÃÂÄÅÃÂÄÅÃÂÄÅâ€œ”’‘—–™šœžŸ¢£§©®°±²³µ¶·»¼½¾¿¡‡†œ',
             charsetBlocks: [' ', '░', '▒', '▓'],
             charFinal: 'X',
             
             tickRateMs: 10,         // How often the animation loop runs (ms)
-            cellsPerTickEnc: 70,    // How many characters change per tick during encryption (to solid)
+            cellsPerTickEnc: 150,    // How many characters change per tick during encryption (to solid)
             cellsPerTickDec: 300,   // How many characters change per tick during decryption (to X and back)
             
-            loadingBarWidth: 38,    // Width of the loading bar inside the brackets
-            resetDelayMs: 100      // How long to show "ACCESS DENIED" and Xs before resetting
+            loadingBarWidth: 48,    // Width of the loading bar inside the brackets
+            resetDelayMs: 1000,      // How long to show "ACCESS DENIED" and Xs before resetting
+            encryptHoldMs: 50,     // How long to display the 100% full loading bar
         };
 
         /* =========================================
@@ -209,7 +205,7 @@
             const currentStages = grid.reduce((sum, cell) => sum + cell.stage, 0);
             const progressRatio = currentStages / totalMaxStages;
             
-            const filledLength = Math.floor(progressRatio * CONFIG.loadingBarWidth);
+            const filledLength = Math.round(progressRatio * CONFIG.loadingBarWidth);
             const emptyLength = CONFIG.loadingBarWidth - filledLength;
             
             const bar = '[' + '='.repeat(filledLength) + ' '.repeat(emptyLength) + ']';
@@ -257,11 +253,17 @@
                 updateLoadingBar();
                 // If fully encrypted to solid blocks
                 if (grid.every(cell => cell.stage === 4)) {
-                    // Set base chars to 'X' for the journey down
-                    grid.forEach(cell => cell.baseChar = CONFIG.charFinal);
-                    currentState = 'DECRYPT_X';
-                    // Display Access Denied in red
-                    domStatusContainer.innerHTML = '<span class="error-text">ACCESS DENIED</span>';
+                    
+                    currentState = 'ENCRYPT_HOLD'; // Set a temporary hold state
+                    
+                    // Wait briefly so the 100% loading bar actually renders on screen
+                    setTimeout(() => {
+                        // Set base chars to 'X' for the journey down
+                        grid.forEach(cell => cell.baseChar = CONFIG.charFinal);
+                        currentState = 'DECRYPT_X';
+                        // Display Access Denied in red
+                        domStatusContainer.innerHTML = '<span class="error-text">ACCESS DENIED</span>';
+                    }, CONFIG.encryptHoldMs);
                 }
 
             } else if (currentState === 'DECRYPT_X') {
